@@ -26,12 +26,15 @@ class log_gaussian:
 
 
 class Trainer:
-    def __init__(self, G, FE, D, Q, to_inverse):
+    def __init__(self, G, FE, D, Q, Q_2, to_inverse):
 
-        self.G = G
-        self.FE = FE
-        self.D = D
-        self.Q = Q
+        has_cuda = torch.cuda.is_available()
+        self.device = torch.device("cuda" if has_cuda else "cpu")
+        self.G = G.to(self.device)
+        self.FE = FE.to(self.device)
+        self.D = D.to(self.device)
+        self.Q = Q.to(self.device)
+        self.Q_2 = Q_2.to(self.device)
         self.batch_size = 100
         self.current_time = gm.get_current_time()
         self.to_inverse = to_inverse
@@ -40,6 +43,8 @@ class Trainer:
             os.makedirs(self.saving_path)
         self.transform_pad = 4
         self.img_size = 28
+
+
 
     def _noise_sample(self, dis_c, con_c, noise, bs):
 
@@ -57,18 +62,16 @@ class Trainer:
         noise.data.uniform_(-1.0, 1.0)
         z = torch.cat([noise, dis_c, con_c], 1).view(-1, 74, 1, 1)
 
-        return z, idx
+        return z, idx, idx_2
 
     def train(self):
-        has_cuda = torch.cuda.is_available()
-        device = torch.device("cuda" if has_cuda else "cpu")
 
-        real_x = torch.FloatTensor(self.batch_size, 1, 28, 28).to(device)
-        label = torch.FloatTensor(self.batch_size, 1).to(device)
-        dis_c = torch.FloatTensor(self.batch_size, 10).to(device)
-        con_c = torch.FloatTensor(self.batch_size, 2).to(device)
-        size_c = torch.FloatTensor(self.batch_size, 2).to(device)
-        noise = torch.FloatTensor(self.batch_size, 62).to(device)
+        real_x = torch.FloatTensor(self.batch_size, 1, 28, 28).to(self.device)
+        label = torch.FloatTensor(self.batch_size, 1).to(self.device)
+        dis_c = torch.FloatTensor(self.batch_size, 10).to(self.device)
+        con_c = torch.FloatTensor(self.batch_size, 2).to(self.device)
+        size_c = torch.FloatTensor(self.batch_size, 2).to(self.device)
+        noise = torch.FloatTensor(self.batch_size, 62).to(self.device)
 
         real_x = Variable(real_x)
         label = Variable(label, requires_grad=False)
@@ -77,13 +80,14 @@ class Trainer:
         size_c = Variable(size_c)
         noise = Variable(noise)
 
-        criterionD = nn.BCELoss().to(device)
-        criterionQ_dis = nn.CrossEntropyLoss().to(device)
+        criterionD = nn.BCELoss().to(self.device)
+        criterionQ_dis = nn.CrossEntropyLoss().to(self.device)
         # criterionQ_con = log_gaussian()
-        criterionQ_con = nn.CrossEntropyLoss().to(device)
+        criterionQ_con = nn.CrossEntropyLoss().to(self.device)
 
         optimD = optim.Adam([{'params':self.FE.parameters()}, {'params':self.D.parameters()}], lr=0.0002, betas=(0.5, 0.99))
-        optimG = optim.Adam([{'params':self.G.parameters()}, {'params':self.Q.parameters()}], lr=0.001, betas=(0.5, 0.99))
+        optimG = optim.Adam([{'params':self.G.parameters()}, {'params':self.Q.parameters()},
+                             {'params':self.Q_2.parameters()}], lr=0.001, betas=(0.5, 0.99))
 
         big_small_transform = transforms.Compose([
             transforms.Pad(self.transform_pad),
@@ -123,9 +127,11 @@ class Trainer:
 
                 # np_plt.plot_a_numpy_array(x[0].data.numpy())
 
+                # print('what is to inverse: ', self.to_inverse)
                 if self.to_inverse == 'mixed':
                     x = torch.cat((x, 1 - x), 0)
-                elif self.to_inverse:
+                elif self.to_inverse == True:
+                    print('has come to inverse')
                     x = 1 - x
 
                 bs = x.size(0)
@@ -144,7 +150,7 @@ class Trainer:
                 loss_real.backward()
 
                 # fake part
-                z, idx = self._noise_sample(dis_c, con_c, noise, bs)
+                z, idx, idx_2 = self._noise_sample(dis_c, con_c, noise, bs)
                 fake_x = self.G(z)
                 fe_out2 = self.FE(fake_x.detach())
                 probs_fake = self.D(fe_out2)
@@ -166,10 +172,16 @@ class Trainer:
                 reconstruct_loss = criterionD(probs_fake, label)
 
                 q_logits, q_mu, q_var = self.Q(fe_out)
-                class_ = torch.LongTensor(idx).to(device)
+                q_logits_2, q_mu_2, q_var_2 = self.Q_2(fe_out)
+                class_ = torch.LongTensor(idx).to(self.device)
+                class_2_ = torch.LongTensor(idx_2).to(self.device)
                 target = Variable(class_)
+                target_2 = Variable(class_2_)
                 dis_loss = criterionQ_dis(q_logits, target)
-                con_loss = criterionQ_con(con_c, q_mu, q_var)*0.1
+                con_loss = 5 * criterionQ_dis(q_logits_2, target_2)
+
+                # print('any dis loss: ', dis_loss)
+                # print('any con loss: ', con_loss)
 
                 G_loss = reconstruct_loss + dis_loss + con_loss
                 G_loss.backward()
@@ -178,8 +190,8 @@ class Trainer:
                 if num_iters % 100 == 0:
 
                     print('Epoch/Iter:{0}/{1}, Dloss: {2}, Gloss: {3}'.format(
-                        epoch, num_iters, D_loss.data.to(device).cpu().numpy(),
-                        G_loss.data.to(device).cpu().numpy())
+                        epoch, num_iters, D_loss.data.to(self.device).cpu().numpy(),
+                        G_loss.data.to(self.device).cpu().numpy())
                     )
 
                     noise.data.copy_(fix_noise)
@@ -194,11 +206,12 @@ class Trainer:
                     con_c.data.copy_(torch.from_numpy(c1))
                     # print('con_c before: ', con_c)
                     z = torch.cat([noise, dis_c, con_c], 1).view(-1, 74, 1, 1)
-                    x_save = self.G(z)
-                    save_image(x_save.data, self.saving_path + '/c1.png', nrow=10)
+                    x_save_1 = self.G(z)
+                    save_image(x_save_1.data, self.saving_path + '/c1.png', nrow=10)
 
                     con_c.data.copy_(torch.from_numpy(c2))
                     # print('con c after: ', con_c)
                     z = torch.cat([noise, dis_c, con_c], 1).view(-1, 74, 1, 1)
-                    x_save = self.G(z)
-                    save_image(x_save.data, self.saving_path + '/c2.png', nrow=10)
+                    x_save_2 = self.G(z)
+                    print('outputs are the same: ', torch.all(torch.eq(x_save_1, x_save_2)))
+                    save_image(x_save_2.data, self.saving_path + '/c2.png', nrow=10)

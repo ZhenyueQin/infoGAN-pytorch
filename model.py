@@ -63,27 +63,28 @@ class Q(nn.Module):
         return disc_logits, mu, var
 
 
-class Q_2(nn.Module):
-    def __init__(self):
-        super(Q_2, self).__init__()
+# class Q_2(nn.Module):
+#     def __init__(self):
+#         super(Q_2, self).__init__()
+#
+#         self.conv = nn.Conv2d(1024, 128, 1, bias=False)
+#         self.bn = nn.BatchNorm2d(128)
+#         self.lReLU = nn.LeakyReLU(0.1, inplace=True)
+#         self.conv_disc = nn.Conv2d(128, 2, 1)
+#         self.conv_mu = nn.Conv2d(128, 2, 1)
+#         self.conv_var = nn.Conv2d(128, 2, 1)
+#
+#     def forward(self, x):
+#
+#         y = self.conv(x)
+#
+#         disc_logits = self.conv_disc(y).squeeze()
+#
+#         mu = self.conv_mu(y).squeeze()
+#         var = self.conv_var(y).squeeze().exp()
+#
+#         return disc_logits, mu, var
 
-        self.conv = nn.Conv2d(1024, 128, 1, bias=False)
-        self.bn = nn.BatchNorm2d(128)
-        self.lReLU = nn.LeakyReLU(0.1, inplace=True)
-        self.conv_disc = nn.Conv2d(128, 2, 1)
-        self.conv_mu = nn.Conv2d(128, 2, 1)
-        self.conv_var = nn.Conv2d(128, 2, 1)
-
-    def forward(self, x):
-
-        y = self.conv(x)
-
-        disc_logits = self.conv_disc(y).squeeze()
-
-        mu = self.conv_mu(y).squeeze()
-        var = self.conv_var(y).squeeze().exp()
-
-        return disc_logits, mu, var
 
 class G(nn.Module):
 
@@ -107,6 +108,7 @@ class G(nn.Module):
     def forward(self, x):
         output = self.main(x)
         return output
+
 
 def weights_init(m):
     classname = m.__class__.__name__
