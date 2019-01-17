@@ -94,7 +94,4 @@ def decode_a_z_file(an_z_file):
     an_z = np.loadtxt(an_z_file, delimiter=',')
     decode_a_z(an_z)
 
-
-
-
 # plot_a_numpy_file('original_np_outs/original_samples_99000.out')
