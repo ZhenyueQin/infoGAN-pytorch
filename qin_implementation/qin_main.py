@@ -1,5 +1,5 @@
-from model import *
-from trainer import Trainer
+from models import *
+from training import Learner
 import torch
 
 has_cuda = torch.cuda.is_available()
@@ -14,5 +14,5 @@ for i in [fe, d, q, g]:
   i.to(device)
   # i.apply(weights_init)
 
-trainer = Trainer(g, fe, d, q, to_inverse=False, is_debugging=True)
+trainer = Learner(g, fe, d, q, to_inverse=False, is_debugging=False)
 trainer.train()

@@ -39,7 +39,6 @@ class D(nn.Module):
 
 
 class Q(nn.Module):
-
     def __init__(self):
         super(Q, self).__init__()
 

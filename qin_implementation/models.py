@@ -2,20 +2,21 @@ import torch.nn as nn
 
 
 class Q(nn.Module):
-    def __init__(self, disc_lat_dim, conv_lat_dim):
+
+    def __init__(self):
         super(Q, self).__init__()
-        self.disc_lat_dim = disc_lat_dim
-        self.conv_lat_dim = conv_lat_dim
 
         self.conv = nn.Conv2d(1024, 128, 1, bias=False)
         self.bn = nn.BatchNorm2d(128)
         self.lReLU = nn.LeakyReLU(0.1, inplace=True)
-        self.conv_disc = nn.Conv2d(128, self.lat_dim, 1)
-        self.conv_mu = nn.Conv2d(128, self.conv_lat_dim, 1)
-        self.conv_var = nn.Conv2d(128, self.conv_lat_dim, 1)
+        self.conv_disc = nn.Conv2d(128, 10, 1)
+        self.conv_mu = nn.Conv2d(128, 2, 1)
+        self.conv_var = nn.Conv2d(128, 2, 1)
+        self.softmax = nn.Softmax()
 
     def forward(self, x):
         y = self.conv(x)
+
         disc_logits = self.softmax(self.conv_disc(y).squeeze())
 
         mu = self.softmax(self.conv_mu(y).squeeze())
